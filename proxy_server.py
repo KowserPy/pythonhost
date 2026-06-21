@@ -26,17 +26,22 @@ class ProxyRequest(BaseModel):
 def proxy_request(req: ProxyRequest):
     proxies = None
     if req.proxy:
-        # Expected format: host:port:user:pass
-        parts = req.proxy.split(":")
-        if len(parts) == 4:
-            host, port, user, pwd = parts
-            proxy_url = f"http://{user}:{pwd}@{host}:{port}"
-        elif len(parts) == 2:
-            host, port = parts
-            proxy_url = f"http://{host}:{port}"
+        raw = req.proxy.strip()
+        # If it's already a full URL, use directly
+        if raw.startswith("http://") or raw.startswith("https://"):
+            proxy_url = raw
         else:
-            proxy_url = f"http://{req.proxy}"
-        
+            # Legacy format: host:port:user:pass or host:port
+            parts = raw.split(":")
+            if len(parts) == 4:
+                host, port, user, pwd = parts
+                proxy_url = f"http://{user}:{pwd}@{host}:{port}"
+            elif len(parts) == 2:
+                host, port = parts
+                proxy_url = f"http://{host}:{port}"
+            else:
+                proxy_url = f"http://{raw}"
+
         proxies = {
             "http": proxy_url,
             "https": proxy_url,
@@ -59,5 +64,13 @@ def proxy_request(req: ProxyRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+import os
+
 if __name__ == "__main__":
-    uvicorn.run("proxy_server:app", host="127.0.0.1", port=8000, reload=True)
+    import uvicorn
+
+    uvicorn.run(
+        "proxy_server:app",
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 10000))
+    )
